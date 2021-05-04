@@ -1,0 +1,52 @@
+# Starter pipeline
+
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool: Default
+ 
+steps:
+
+- script: sudo apt update
+  displayName: 'update a repo'
+
+- script: sudo apt install tree maven zip docker.io openjdk-8-jdk -y 
+  displayName: 'install dependency'
+
+- script: sudo mvn clean
+  displayName: 'perform maven clean'
+
+- script: sudo mvn compile
+  displayName: 'perform maven compile'
+
+- script: sudo mvn test
+  displayName: 'perform maven tests'
+
+- script: sudo mvn surefire-report:report
+  displayName: 'generate reports'
+
+- script: sudo mvn package
+  displayName: 'perform maven package'
+
+- script: sudo zip -r site-anil-$(Build.BuildId).zip target/site/*
+  displayName: 'zip all unit test reports'
+
+- script: sudo docker build -t anilbidari/todo:$(Build.BuildId) .
+  displayName: 'build docker image'
+
+- script: sudo docker login -u $(dockerid) -p $(dockerhub-pwd)
+  displayName: 'docker login'
+
+- script: sudo docker push anilbidari/todo:$(Build.BuildId)
+  displayName: 'docker upload image'
+
+- script: sudo docker run -itd --name todo-$(Build.BuildId) -p 8080 anilbidari/todo:$(Build.BuildId) /bin/bash
+  displayName: 'run container'
+
+- script: sudo docker ps -l
+  displayName: 'list container'
+

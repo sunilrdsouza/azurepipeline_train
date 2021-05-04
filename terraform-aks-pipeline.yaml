@@ -1,0 +1,97 @@
+# Starter pipeline
+
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool: Default
+steps:
+
+- script: sudo apt update
+  displayName: 'update a repo'
+
+- script: sudo apt install tree maven zip docker.io openjdk-8-jdk -y 
+  displayName: 'install dependency'
+
+- script: sudo mvn clean
+  displayName: 'perform maven clean'
+  
+- script: sudo mvn compile
+  displayName: 'perform maven compile'
+  
+#- script: sudo mvn sonar:sonar -Dsonar.projectKey=cloudenabled -Dsonar.host.url=http://172.20.105.57:9000 -Dsonar.login=9f7360036cea0c7fd1eeb319b9136f1001c3c1b3
+#  displayName: 'perform sonar analysis'
+  
+- script: sudo mvn test
+  displayName: 'perform maven tests'
+
+- script: sudo mvn surefire-report:report
+  displayName: 'generate reports'
+  
+- script: sudo zip -r site-anil-$(Build.BuildId).zip target/site/*
+  displayName: 'zip all unit test reports'
+
+#- script: curl -v -u admin:CloudEnabled --upload-file site-anil-$(Build.BuildId).zip http://172.20.105.62:8081/repository/maven-releases/
+#  displayName: 'upload unit test report to nexus'
+  
+- script: sudo mvn package
+  displayName: 'perform maven package'
+
+#- script: curl -v -u admin:CloudEnabled --upload-file target/todorest-0.0.1-SNAPSHOT.jar http://172.20.105.62:8081/repository/maven-releases/todo-$(Build.BuildId).jar
+#  displayName: 'upload jar nexus'
+
+- script: sudo docker build -t anilbidari/todo:$(Build.BuildId) .
+  displayName: 'build docker image'
+
+- script: sudo docker login -u $(dockerid) -p $(dockerhub-pwd)
+  displayName: 'docker login'
+
+
+- script: sudo docker push anilbidari/todo:$(Build.BuildId)
+  displayName: 'docker upload image'
+
+- script: sudo docker run -itd -p 8080 anilbidari/todo:$(Build.BuildId) /bin/bash
+  displayName: 'run container'
+
+- script: sudo docker ps -l
+  displayName: 'list container'
+
+- script: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  displayName: 'install az cli'
+
+- script:  sudo terraform init
+  displayName: initialize terraform
+
+- script:  sudo terraform apply --auto-approve
+  displayName: deploy cluster
+
+- script: sudo snap install kubectl --classic
+  displayName: 'install kubectl'
+
+- script: sudo az account set --subscription $(azure_subscription_id)
+  displayName: 'set subcription'
+
+- script: sudo az aks get-credentials --resource-group devops-rg --name myAKSCluster-$(Build.BuildId)
+  displayName: 'get credentials'
+
+- script: sudo kubectl get nodes
+  displayName: List the nodes 
+
+- script:  sudo kubectl create deployment todo-$(Build.BuildId) --image=anilbidari/todo:$(Build.BuildId) --port=8080  
+  displayName: 'deploy pods'
+
+- script: sudo  kubectl expose deployment todo-$(Build.BuildId) --type="LoadBalancer"
+  displayName: 'expose todo app behind load balancer'
+
+
+- script: sudo kubectl autoscale deployment todo-$(Build.BuildId) --cpu-percent=50 --min=3 --max=10
+  displayName: Set autoscale min3 and max 10
+
+- script: sudo kubectl get deployment todo-$(Build.BuildId)
+  displayName: 'kubectl get deployment'
+
+- script: sudo kubectl get svc todo-$(Build.BuildId)
+  displayName: 'kubectl get svc'
